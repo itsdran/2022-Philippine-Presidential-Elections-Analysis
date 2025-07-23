@@ -12,25 +12,29 @@ This project will use the dataset from Figshare: click [here](https://figshare.c
 ## Setting Up the Environment
 
 ```{r Setting Up the Environment}
-install.packages('tidyverse')
-install.packages('readr')
-install.packages('dplyr')
-install.packages('janitor')
-install.packages('ggplot2')
-install.packages('plotly')
-install.packages('scales')
-install.packages('sf')
-install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
-                                   "https://cloud.r-project.org"))
-library(tidyverse)
-library(readr)
-library(janitor)
-library(ggplot2)
-library(plotly)
-library(scales)
-library(sf)
-library(dplyr)
-library(tmap)
+packages <- c("tidyverse", "readr", "dplyr", "janitor", "ggplot2", 
+              "plotly", "scales", "sf", "tmap")
+
+# Regular CRAN packages
+cran_packages <- setdiff(packages, "tmap")
+
+# Install only missing CRAN packages
+install_if_missing <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg)
+  }
+}
+
+lapply(cran_packages, install_if_missing)
+
+# Special install for 'tmap' from r-universe
+if (!requireNamespace("tmap", quietly = TRUE)) {
+  install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
+                                     "https://cloud.r-project.org"))
+}
+
+# Load all libraries
+lapply(packages, library, character.only = TRUE)
 ```
 
 ## Reading the Dataset
@@ -122,7 +126,6 @@ ggplot(candidates_df, aes(x = reorder(candidate_name, -total_votes),
 # ggplotly(plot)  
 ```
 
-
 ### Candidate Winners per City
 
 Now, let's see all the city across the country and see which candidates they voted most. 
@@ -135,20 +138,18 @@ city_winners <- pres_df %>%
   rowwise() %>%
   # Checks each column in every row to find the column that have the highest vote.
   mutate(winner = names(.)[which.max(c_across(starts_with("pres_")))]) %>%
-  ungroup() %>% 
-  inner_join(select(pres_df, city, city_clean), by = "city_clean") %>%
-  inner_join(select(ph_geo, city_clean, geometry), by = "city_clean") %>%
-  distinct(city_clean, winner, geometry)
+  ungroup() 
 ```
 
 ### Getting GeoJSON of the country's regions
 
 What we want to do is color each region of the country based on which candidate was voted the most. With the current dataset, that is not possible so we need to find a way to find and locate each region. Luckily, we have that information online: click [here](https://gadm.org/download_country.html) to download the country's (level 2) GeoJSON. 
 
-```{r}
+```{r Reading PH Geodata}
 ph_geo <- st_read("PH_GeoJSON.json")
-colnames(ph_geo)
+# colnames(ph_geo)
 ```
+
 Great, now we have the geometry coordinates of the cities. Note that the cities in `PH_GeoJSON`, the city column is named NAME_2, in sentence casing, and no spaces. We need to fix that first to be able to merge the two dataframes.
 
 Let's first clean both dataframe's city column by creating a new column to turn both `pres_df(city)` and `ph_geo(NAME_2)` to lowercase and named `city_clean`
@@ -164,17 +165,24 @@ city_winners <- city_winners %>%
 
 Now, let's merge the two dataframes.
 
-```{r}
-city_winners_with_geo <- ph_geo %>%
-  inner_join(select(pres_df, city, city_clean), by = "city_clean") %>%
-  inner_join(select(ph_geo, city_clean, geometry), by = "city_clean") %>%
-  distinct(city_clean, winner, geometry)
+```{r Merging the dataframes}
+city_winners <- city_winners %>%
+  # In the city winners, you'll be able to see the votes per city, candidate who won, their campaign color, and the city's geometry.
+  left_join(select(ph_geo, city_clean, geometry), by = "city_clean") %>% 
+  left_join(select(candidates_df, colname, campaign_color), by = c("winner" = "colname"))
+
+# Here, we need to convert the dataframe into a sf object
+city_winners <- st_as_sf(city_winners, sf_column_name = "geometry")
+st_geometry(city_winners)
+
 ```
 
-We now have the winnners per city and the coordinates of the cities. We can now do a geocomputation map.
+We now have the winners per city and the coordinates of the cities. We can now do a geocomputation map.
 
 ```{r}
-ggplot(cities_with_geo$geometry) +
-  geom_sf(aes(fill=city_winners$winner))
+ggplot(data = city_winners) +
+  geom_sf(aes(fill = campaign_color), size = 0.2) +
+  scale_fill_identity() +
+  labs(title = "2022 PH Presidential Election: City Winners by Campaign Color",
+       fill = "Winner")
 ```
-

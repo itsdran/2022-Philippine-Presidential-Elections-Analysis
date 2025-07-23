@@ -23,4 +23,24 @@ library(janitor)
 library(ggplot2)
 
 ```
+## Reading the Dataset
+
+Importing the dataset to the dataframe. In this case, the dataset is named as presidential_election.csv, feel free to change it to your preference!
+
+```{r data_frame_initiation}
+pres_df <- data.frame(read_csv("presidential_election.csv"))
+
+```
+
+
+## Studying the Dataset
+
+Here, I studied the structure of the dataset and the connection of each column to one another.
+
+```{r}
+head(pres_df)
+str(pres_df)
+colnames(pres_df)
+```
+
 

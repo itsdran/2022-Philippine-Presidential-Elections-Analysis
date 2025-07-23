@@ -1,0 +1,26 @@
+---
+title: "2022 Presidential Elections Data"
+output: html_notebook
+---
+
+This is a personal project that aims to analyze the Philippine 2022 Presidential Election using the programming language, R. This project is based on Project Raven's Tableau [project](https://www.facebook.com/61562294530876/posts/pfbid02bwLWd45JfRSiCbmaFYBJRfM4WbYD6diK8rBAHRzoDjDwoZF8DWW8HZJ6gKJRhp9tl/). 
+
+My personal aim in achieving this project is to avoid using any AI for assistance to fully immerse myself with the fundamentals and avoid reliance.
+
+This project will use the dataset from Figshare: click [here](https://figshare.com/articles/dataset/2022_Presidential_Elections_Data/19755469?file=35101492) to download the dataset.
+
+## Setting Up the Environment
+
+```{r environment_set_up}
+install.packages('tidyverse')
+install.packages('readr')
+install.packages('janitor')
+install.packages('ggplot2')
+
+library(tidyverse)
+library(readr)
+library(janitor)
+library(ggplot2)
+
+```
+

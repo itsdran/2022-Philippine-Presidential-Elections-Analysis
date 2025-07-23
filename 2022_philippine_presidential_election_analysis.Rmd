@@ -14,15 +14,23 @@ This project will use the dataset from Figshare: click [here](https://figshare.c
 ```{r Setting Up the Environment}
 install.packages('tidyverse')
 install.packages('readr')
+install.packages('dplyr')
 install.packages('janitor')
 install.packages('ggplot2')
 install.packages('plotly')
-
+install.packages('scales')
+install.packages('sf')
+install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
+                                   "https://cloud.r-project.org"))
 library(tidyverse)
 library(readr)
 library(janitor)
 library(ggplot2)
 library(plotly)
+library(scales)
+library(sf)
+library(dplyr)
+library(tmap)
 ```
 
 ## Reading the Dataset
@@ -53,46 +61,27 @@ This section will now take a closer look on the results of the 2022 election. He
 candidates_df <- data.frame(
   id = 0:9,
   colname = c(
-    "pres_1_abella",
-    "pres_2_de_guzman",
-    "pres_3_domagoso",
-    "pres_4_gonzales",
-    "pres_5_lacson",
-    "pres_6_mangondato",
-    "pres_7_marcos",
-    "pres_8_montemayor",
-    "pres_9_pacquiao",
-    "pres_10_robredo"
+    "pres_1_abella", "pres_2_de_guzman", "pres_3_domagoso", "pres_4_gonzales", 
+    "pres_5_lacson", "pres_6_mangondato", "pres_7_marcos", 
+    "pres_8_montemayor", "pres_9_pacquiao", "pres_10_robredo"
   ),
   candidate_name = c(
-    "Ernesto Abella",
-    "Leody de Guzman",
-    "Isko Moreno Domagoso",
-    "Norberto Gonzales",
-    "Panfilo Lacson",
-    "Faisal Mangondato",
-    "Ferdinand Marcos Jr.",
-    "Jose Montemayor Jr.",
-    "Manny Pacquiao",
-    "Leni Robredo"
+    "Ernesto Abella", "Leody de Guzman", "Isko Moreno Domagoso", "Norberto Gonzales",
+    "Panfilo Lacson", "Faisal Mangondato", "Ferdinand Marcos Jr.",
+    "Jose Montemayor Jr.", "Manny Pacquiao", "Leni Robredo"
   ),
   campaign_color = c(
-    "#808080",
-    "#FFA500",
-    "#0074D9",
-    "#228B22",
-    "#DDDDDD",
-    "#8B4513",
-    "#D50000",
-    "#90EE90",
-    "#FFD700",
-    "#FF69B4"
+    "#808080", "#FFA500", "#0074D9", "#228B22",
+    "#DDDDDD", "#8B4513", "#D50000",
+    "#90EE90", "#FFD700", "#FF69B4"
   ),
   stringsAsFactors = FALSE
 )
 
 colnames(candidates_df)
 ```
+### Total Votes Preview
+
 Next, I want a quick summary of the total votes per candidate during the election.Since I have a `pres_df` containing their candidate names and notice that colname serves as the reference for both dataframe. Then, I added a column in the `candidates_df` to count all their corresponding votes throughout the country. 
 
 In this chunk, each row will be checked out based on the according `colname` from `candidates_df`. This statement translates into "sum all votes from this column."
@@ -108,7 +97,9 @@ candidates_df %>%
   arrange(desc(total_votes))
 ```
 
-Now, let's visualize that.
+### Bar Chart of 2022 Philippine Presidential Election
+
+Now, let's visualize that. To make the plot interactive, you can use ggplotly.
 
 ```{r Plotting the preview}
 ggplot(candidates_df, aes(x = reorder(candidate_name, -total_votes),
@@ -118,7 +109,7 @@ ggplot(candidates_df, aes(x = reorder(candidate_name, -total_votes),
   scale_fill_identity() + 
   scale_y_continuous(labels = comma) +
   labs(
-    title = "2022 Philippine Presidential Candidate",
+    title = "2022 Philippine Presidential Election",
     x = "Candidate",
     y = "Total Votes"
   ) +
@@ -126,5 +117,64 @@ ggplot(candidates_df, aes(x = reorder(candidate_name, -total_votes),
     axis.text.x = element_text(angle = 45, hjust = 1),
     plot.title = element_text(hjust = 0.5, face = "bold")
   )
+
+# Assign plot to a variable named `plot`, run this code:
+# ggplotly(plot)  
+```
+
+
+### Candidate Winners per City
+
+Now, let's see all the city across the country and see which candidates they voted most. 
+
+```{r City Winners}
+city_winners <- pres_df %>% 
+  group_by(city) %>%
+  # Checks all president vote columns, sums it all up (discards null values)
+  summarize(across(starts_with("pres_"), sum, na.rm = TRUE)) %>%
+  rowwise() %>%
+  # Checks each column in every row to find the column that have the highest vote.
+  mutate(winner = names(.)[which.max(c_across(starts_with("pres_")))]) %>%
+  ungroup() %>% 
+  inner_join(select(pres_df, city, city_clean), by = "city_clean") %>%
+  inner_join(select(ph_geo, city_clean, geometry), by = "city_clean") %>%
+  distinct(city_clean, winner, geometry)
+```
+
+### Getting GeoJSON of the country's regions
+
+What we want to do is color each region of the country based on which candidate was voted the most. With the current dataset, that is not possible so we need to find a way to find and locate each region. Luckily, we have that information online: click [here](https://gadm.org/download_country.html) to download the country's (level 2) GeoJSON. 
+
+```{r}
+ph_geo <- st_read("PH_GeoJSON.json")
+colnames(ph_geo)
+```
+Great, now we have the geometry coordinates of the cities. Note that the cities in `PH_GeoJSON`, the city column is named NAME_2, in sentence casing, and no spaces. We need to fix that first to be able to merge the two dataframes.
+
+Let's first clean both dataframe's city column by creating a new column to turn both `pres_df(city)` and `ph_geo(NAME_2)` to lowercase and named `city_clean`
+
+```{r Cleaning the data}
+pres_df <- pres_df %>%
+    mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
+ph_geo <- ph_geo %>% 
+    mutate(city_clean = str_to_lower(str_replace_all(NAME_2, "\\s+", "")))
+city_winners <- city_winners %>% 
+      mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
+```
+
+Now, let's merge the two dataframes.
+
+```{r}
+city_winners_with_geo <- ph_geo %>%
+  inner_join(select(pres_df, city, city_clean), by = "city_clean") %>%
+  inner_join(select(ph_geo, city_clean, geometry), by = "city_clean") %>%
+  distinct(city_clean, winner, geometry)
+```
+
+We now have the winnners per city and the coordinates of the cities. We can now do a geocomputation map.
+
+```{r}
+ggplot(cities_with_geo$geometry) +
+  geom_sf(aes(fill=city_winners$winner))
 ```
 

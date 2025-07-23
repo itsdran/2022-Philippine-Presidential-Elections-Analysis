@@ -11,23 +11,25 @@ This project will use the dataset from Figshare: click [here](https://figshare.c
 
 ## Setting Up the Environment
 
-```{r environment_set_up}
+```{r Setting Up the Environment}
 install.packages('tidyverse')
 install.packages('readr')
 install.packages('janitor')
 install.packages('ggplot2')
+install.packages('plotly')
 
 library(tidyverse)
 library(readr)
 library(janitor)
 library(ggplot2)
-
+library(plotly)
 ```
+
 ## Reading the Dataset
 
 Importing the dataset to the dataframe. In this case, the dataset is named as presidential_election.csv, feel free to change it to your preference!
 
-```{r data_frame_initiation}
+```{r Data Frame Iniation}
 pres_df <- data.frame(read_csv("presidential_election.csv"))
 
 ```
@@ -37,10 +39,92 @@ pres_df <- data.frame(read_csv("presidential_election.csv"))
 
 Here, I studied the structure of the dataset and the connection of each column to one another.
 
-```{r}
-head(pres_df)
-str(pres_df)
+```{r Dataset Structure}
+# head(pres_df)
+# str(pres_df)
 colnames(pres_df)
 ```
 
+## Analysis 
+
+This section will now take a closer look on the results of the 2022 election. Here, I added a dataframe that shows the candidates' names along with their campaign colors just for reference.
+
+```{r Candidate Names and Campaign Colors}
+candidates_df <- data.frame(
+  id = 0:9,
+  colname = c(
+    "pres_1_abella",
+    "pres_2_de_guzman",
+    "pres_3_domagoso",
+    "pres_4_gonzales",
+    "pres_5_lacson",
+    "pres_6_mangondato",
+    "pres_7_marcos",
+    "pres_8_montemayor",
+    "pres_9_pacquiao",
+    "pres_10_robredo"
+  ),
+  candidate_name = c(
+    "Ernesto Abella",
+    "Leody de Guzman",
+    "Isko Moreno Domagoso",
+    "Norberto Gonzales",
+    "Panfilo Lacson",
+    "Faisal Mangondato",
+    "Ferdinand Marcos Jr.",
+    "Jose Montemayor Jr.",
+    "Manny Pacquiao",
+    "Leni Robredo"
+  ),
+  campaign_color = c(
+    "#808080",
+    "#FFA500",
+    "#0074D9",
+    "#228B22",
+    "#DDDDDD",
+    "#8B4513",
+    "#D50000",
+    "#90EE90",
+    "#FFD700",
+    "#FF69B4"
+  ),
+  stringsAsFactors = FALSE
+)
+
+colnames(candidates_df)
+```
+Next, I want a quick summary of the total votes per candidate during the election.Since I have a `pres_df` containing their candidate names and notice that colname serves as the reference for both dataframe. Then, I added a column in the `candidates_df` to count all their corresponding votes throughout the country. 
+
+In this chunk, each row will be checked out based on the according `colname` from `candidates_df`. This statement translates into "sum all votes from this column."
+
+```{r Quick Preview}
+candidates_df <- candidates_df %>%
+  rowwise() %>%
+  mutate(total_votes = sum(pres_df[[colname]])) %>%
+  ungroup() 
+
+candidates_df %>%
+  select(candidate_name, total_votes) %>%
+  arrange(desc(total_votes))
+```
+
+Now, let's visualize that.
+
+```{r Plotting the preview}
+ggplot(candidates_df, aes(x = reorder(candidate_name, -total_votes),
+                                  y = total_votes,
+                                  fill = I(campaign_color))) + 
+  geom_bar(stat = "identity") +
+  scale_fill_identity() + 
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "2022 Philippine Presidential Candidate",
+    x = "Candidate",
+    y = "Total Votes"
+  ) +
+  theme (
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+```
 

@@ -11,6 +11,8 @@ This project will use the dataset from Figshare: click [here](https://figshare.c
 
 ## Setting Up the Environment
 
+This list contains all the packages necessary for this project. To uncomment the list, press `Ctrl + Shift + C`. Feel free to continue if you have these packages installed already.
+
 ```{r Setting Up the Environment}
 # install.packages('tidyverse')
 # install.packages('readr')
@@ -121,19 +123,25 @@ ggplot(candidates_df, aes(x = reorder(candidate_name, -total_votes),
 # ggplotly(plot)  
 ```
 
-### Candidate Winners per City
+### Candidate Winners per City and per Province
 
-Now, let's see all the city across the country and see which candidates they voted most. 
+Now, let's see all the city and provinces across the country and see which candidates they voted most. 
 
 ```{r City Winners}
 city_winners <- pres_df %>% 
   group_by(city) %>%
-  # Checks all president vote columns, sums it all up (discards null values)
-  summarize(across(starts_with("pres_"), sum, na.rm = TRUE)) %>%
+  summarize(across(all_of(candidates_df$colname), sum, na.rm = TRUE)) %>%
   rowwise() %>%
-  # Checks each column in every row to find the column that have the highest vote.
-  mutate(winner = names(.)[which.max(c_across(starts_with("pres_")))]) %>%
-  ungroup() 
+  mutate(city_winner = candidates_df$colname[which.max(c_across(all_of(candidates_df$colname)))]) %>%
+  ungroup()
+
+provincial_winners <- pres_df %>% 
+  group_by(province) %>%
+  summarize(across(all_of(candidates_df$colname), sum, na.rm = TRUE)) %>%
+  rowwise() %>%
+  mutate(provincial_winner = candidates_df$colname[which.max(c_across(all_of(candidates_df$colname)))]) %>%
+  ungroup() %>% 
+  left_join(select(candidates_df, colname, campaign_color), by = c("provincial_winner" = "colname"))
 ```
 
 ### Getting GeoJSON of the country's regions
@@ -144,20 +152,24 @@ What we want to do is color each region of the country based on which candidate 
 ph_geo <- st_read("PH_GeoJSON.json")
 # colnames(ph_geo)
 ```
-
 Great, now we have the geometry coordinates of the cities. Note that the cities in `PH_GeoJSON`, the city column is named NAME_2, in sentence casing, and no spaces. We need to fix that first to be able to merge the two dataframes.
 
 Let's first clean both dataframe's city column by creating a new column to turn both `pres_df(city)` and `ph_geo(NAME_2)` to lowercase and named `city_clean`
 
 ```{r Cleaning the data}
 pres_df <- pres_df %>%
-    mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
+    mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", ""))) %>% 
+    mutate(province_clean = str_to_lower(str_replace_all(province, "\\s+", "")))
 
 ph_geo <- ph_geo %>% 
-    mutate(city_clean = str_to_lower(str_replace_all(NAME_2, "\\s+", "")))
+    mutate(city_clean = str_to_lower(str_replace_all(NAME_2, "\\s+", ""))) %>% 
+    mutate(province_clean = str_to_lower(str_replace_all(NAME_1, "\\s+", "")))
 
 city_winners <- city_winners %>% 
     mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
+
+provincial_winners <- provincial_winners %>% 
+    mutate(province_clean = str_to_lower(str_replace_all(province, "\\s+", "")))
 ```
 
 Now, let's merge the two dataframes.
@@ -166,19 +178,41 @@ Now, let's merge the two dataframes.
 city_winners <- city_winners %>%
   # In the city winners, you'll be able to see the votes per city, candidate who won, their campaign color, and the city's geometry.
   left_join(select(ph_geo, city_clean, geometry), by = "city_clean") %>% 
-  left_join(select(candidates_df, colname, campaign_color), by = c("winner" = "colname"))
+  left_join(select(candidates_df, colname, campaign_color), by = c("city_winner" = "colname"))
 
 # Here, we need to convert the dataframe into a sf object
 city_winners <- st_as_sf(city_winners, sf_column_name = "geometry")
 # st_geometry(city_winners)
+
+province_winners <- ph_geo %>%
+  mutate(
+    geometry = st_make_valid(geometry)  # 🧹 Clean invalid geometries
+  ) %>%
+  group_by(province_clean) %>%
+  summarise(geometry = st_union(geometry), .groups = "drop")
+
+province_winners <- provincial_winners %>%
+  left_join(ph_geo, by = "province_clean") %>%
+  st_as_sf()
 ```
 
 We now have the winners per city and the coordinates of the cities. We can now do a geocomputation map.
 
-```{r Plotting the Regional and City winners}
+```{r Plotting the City winners}
 ggplot(data = city_winners) +
   geom_sf(aes(fill = campaign_color), size = 0.2) +
   scale_fill_identity() +
-  labs(title = "2022 PH Presidential Election: City Winners by Campaign Color",
+  labs(title = "2022 PH Presidential Election per City",
        fill = "Winner")
 ```
+
+Let's do the same for winners per region.
+
+```{r Plotting the Regional Winners}
+ggplot(data = province_winners) +
+  geom_sf(aes(fill = campaign_color), size = 0.2) +
+  scale_fill_identity() +
+  labs(title = "2022 PH Presidential Election: Provincial Winners",
+       fill = "Winner")
+```
+

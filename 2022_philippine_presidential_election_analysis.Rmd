@@ -12,29 +12,25 @@ This project will use the dataset from Figshare: click [here](https://figshare.c
 ## Setting Up the Environment
 
 ```{r Setting Up the Environment}
-packages <- c("tidyverse", "readr", "dplyr", "janitor", "ggplot2", 
-              "plotly", "scales", "sf", "tmap")
-
-# Regular CRAN packages
-cran_packages <- setdiff(packages, "tmap")
-
-# Install only missing CRAN packages
-install_if_missing <- function(pkg) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    install.packages(pkg)
-  }
-}
-
-lapply(cran_packages, install_if_missing)
-
-# Special install for 'tmap' from r-universe
-if (!requireNamespace("tmap", quietly = TRUE)) {
-  install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
-                                     "https://cloud.r-project.org"))
-}
-
-# Load all libraries
-lapply(packages, library, character.only = TRUE)
+# install.packages('tidyverse')
+# install.packages('readr')
+# install.packages('dplyr')
+# install.packages('janitor')
+# install.packages('ggplot2')
+# install.packages('plotly')
+# install.packages('scales')
+# install.packages('sf')
+# install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
+#                                    "https://cloud.r-project.org"))
+# library(tidyverse)
+# library(readr)
+# library(janitor)
+# library(ggplot2)
+# library(plotly)
+# library(scales)
+# library(sf)
+# library(dplyr)
+# library(tmap)
 ```
 
 ## Reading the Dataset
@@ -45,7 +41,6 @@ Importing the dataset to the dataframe. In this case, the dataset is named as pr
 pres_df <- data.frame(read_csv("presidential_election.csv"))
 
 ```
-
 
 ## Studying the Dataset
 
@@ -63,7 +58,7 @@ This section will now take a closer look on the results of the 2022 election. He
 
 ```{r Candidate Names and Campaign Colors}
 candidates_df <- data.frame(
-  id = 0:9,
+  id = 1:10,
   colname = c(
     "pres_1_abella", "pres_2_de_guzman", "pres_3_domagoso", "pres_4_gonzales", 
     "pres_5_lacson", "pres_6_mangondato", "pres_7_marcos", 
@@ -157,10 +152,12 @@ Let's first clean both dataframe's city column by creating a new column to turn 
 ```{r Cleaning the data}
 pres_df <- pres_df %>%
     mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
+
 ph_geo <- ph_geo %>% 
     mutate(city_clean = str_to_lower(str_replace_all(NAME_2, "\\s+", "")))
+
 city_winners <- city_winners %>% 
-      mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
+    mutate(city_clean = str_to_lower(str_replace_all(city, "\\s+", "")))
 ```
 
 Now, let's merge the two dataframes.
@@ -173,13 +170,12 @@ city_winners <- city_winners %>%
 
 # Here, we need to convert the dataframe into a sf object
 city_winners <- st_as_sf(city_winners, sf_column_name = "geometry")
-st_geometry(city_winners)
-
+# st_geometry(city_winners)
 ```
 
 We now have the winners per city and the coordinates of the cities. We can now do a geocomputation map.
 
-```{r}
+```{r Plotting the Regional and City winners}
 ggplot(data = city_winners) +
   geom_sf(aes(fill = campaign_color), size = 0.2) +
   scale_fill_identity() +

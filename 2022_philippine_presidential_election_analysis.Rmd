@@ -184,14 +184,12 @@ city_winners <- city_winners %>%
 city_winners <- st_as_sf(city_winners, sf_column_name = "geometry")
 # st_geometry(city_winners)
 
-province_winners <- ph_geo %>%
+provincial_winner <- ph_geo %>%
   mutate(
     geometry = st_make_valid(geometry)  # 🧹 Clean invalid geometries
   ) %>%
   group_by(province_clean) %>%
-  summarise(geometry = st_union(geometry), .groups = "drop")
-
-province_winners <- provincial_winners %>%
+  summarise(geometry = st_union(geometry), .groups = "drop") %>% 
   left_join(ph_geo, by = "province_clean") %>%
   st_as_sf()
 ```
@@ -212,7 +210,7 @@ Let's do the same for winners per region.
 ggplot(data = province_winners) +
   geom_sf(aes(fill = campaign_color), size = 0.2) +
   scale_fill_identity() +
-  labs(title = "2022 PH Presidential Election: Provincial Winners",
+  labs(title = "2022 PH Presidential Election per City",
        fill = "Winner")
 ```
 
